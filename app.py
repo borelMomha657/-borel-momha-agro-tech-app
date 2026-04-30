@@ -2,16 +2,13 @@ import streamlit as st
 import pandas as pd
 import os
 
-# Nom du fichier pour sauvegarder les donnees
+# Nom du fichier immuable
 NOM_FICHIER = "donnees_agro.csv"
 
-# Configuration de la page
-st.set_page_config(page_title="AgroStat INF232", layout="centered")
-
+st.set_page_config(page_title="momha AgroStat INF232", layout="centered")
 st.title("AgroStat : Collecte et Analyse")
-st.write("TP INF 232 - borel momha agro tech")
 
-# --- 1. FORMULAIRE DE COLLECTE (En haut de la page) ---
+# --- PARTIE 1 : COLLECTE (SANS MODIFICATION) ---
 st.header("Saisie des donnees")
 with st.form("form_unique", clear_on_submit=True):
     culture = st.selectbox("Produit Agricole", [
@@ -26,50 +23,55 @@ with st.form("form_unique", clear_on_submit=True):
     
     if soumettre:
         if zone and prix > 0:
-            # Creation de la ligne
             nouvelle_ligne = pd.DataFrame([[culture, prix, humidite, zone]], 
                                          columns=["Culture", "Prix", "Humidite", "Zone"])
-            # Sauvegarde immediate
             if not os.path.exists(NOM_FICHIER):
                 nouvelle_ligne.to_csv(NOM_FICHIER, index=False)
             else:
                 nouvelle_ligne.to_csv(NOM_FICHIER, mode='a', header=False, index=False)
-            st.success("Donnee enregistree avec succes !")
+            st.success("Donnee enregistree !")
+            # Cette commande force Streamlit a relire tout le code pour mettre l'analyse a jour
+            st.rerun()
         else:
-            st.error("Veuillez remplir le prix et la zone.")
+            st.error("Remplissez tous les champs.")
 
 st.markdown("---")
 
-# --- 2. ANALYSE DESCRIPTIVE (Juste en dessous) ---
-st.header("Analyse et Historique")
+# --- PARTIE 2 : ANALYSE DESCRIPTIVE (CORRIGEE) ---
+st.header("Analyse Descriptive")
 
 if os.path.exists(NOM_FICHIER):
-    # Lecture du fichier
-    df = pd.read_csv(NOM_FICHIER)
-    
-    if not df.empty:
-        # Statistiques en colonnes
-        c1, c2 = st.columns(2)
-        c1.metric("Nombre de collectes", len(df))
-        # Calcul de la moyenne
-        prix_moyen = round(df["Prix"].mean(), 1)
-        c2.metric("Prix Moyen Global", f"{prix_moyen} FCFA")
+    try:
+        # 1. Lecture forcee avec Pandas
+        df_analyse = pd.read_csv(NOM_FICHIER)
         
-        # Graphique simple
-        st.write("### Graphique des prix par produit")
-        chart_data = df.groupby("Culture")["Prix"].mean()
-        st.bar_chart(chart_data)
+        # 2. Nettoyage de securite pour l'analyse
+        # On s'assure que 'Prix' est bien traite comme un nombre
+        df_analyse["Prix"] = pd.to_numeric(df_analyse["Prix"], errors='coerce')
         
-        # Affichage du tableau
-        st.write("### Tableau des donnees enregistrees")
-        st.dataframe(df, use_container_width=True)
-        
-        # Option de suppression (pour vider la base si besoin)
-        if st.button("Vider la base de donnees"):
-            os.remove(NOM_FICHIER)
-            st.warning("Base de donnees supprimee. Rechargez la page.")
-    else:
-        st.info("Le fichier est vide. Enregistrez une donnee ci-dessus.")
+        if not df_analyse.empty:
+            # Affichage des compteurs
+            col_a, col_b = st.columns(2)
+            nb_entrees = len(df_analyse)
+            moyenne = round(df_analyse["Prix"].mean(), 1)
+            
+            col_a.metric("Total Collectes", nb_entrees)
+            col_b.metric("Prix Moyen (FCFA)", f"{moyenne}")
+            
+            # 3. Graphique descriptif
+            st.write("### Visualisation des prix moyens")
+            # Agregation pour le graphique
+            stats_produit = df_analyse.groupby("Culture")["Prix"].mean()
+            st.bar_chart(stats_produit)
+            
+            # 4. Affichage du tableau historique
+            st.write("### Historique complet du fichier CSV")
+            st.dataframe(df_analyse, use_container_width=True)
+            
+        else:
+            st.info("Le fichier est vide pour le moment.")
+            
+    except Exception as e:
+        st.error(f"Erreur lors de la lecture de l'analyse : {e}")
 else:
-    st.info("Aucune donnee enregistree pour le moment.")
-
+    st.info("En attente de la premiere collecte pour generer l'analyse.")
