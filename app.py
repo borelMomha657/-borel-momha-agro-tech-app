@@ -2,37 +2,28 @@ import streamlit as st
 import pandas as pd
 import os
 
-# --- NOM DU FICHIER DE SAUVEGARDE ---
+# Nom du fichier unique
 NOM_FICHIER = "donnees_agro.csv"
 
-# --- FONCTION POUR CHARGER LES DONNEES ---
-def charger_donnees():
-    if os.path.exists(NOM_FICHIER):
-        return pd.read_csv(NOM_FICHIER)
-    else:
-        # Si le fichier n'existe pas, on retourne un tableau vide avec les colonnes
-        return pd.DataFrame(columns=["Culture", "Prix", "Humidite", "Zone"])
-
-# --- FONCTION POUR SAUVEGARDER LES DONNEES ---
-def sauvegarder_donnee(culture, prix, humidite, zone):
-    nouvelle_ligne = pd.DataFrame([[culture, prix, humidite, zone]], 
-                                 columns=["Culture", "Prix", "Humidite", "Zone"])
-    
-    if not os.path.exists(NOM_FICHIER):
-        nouvelle_ligne.to_csv(NOM_FICHIER, index=False)
-    else:
-        # On ajoute la ligne a la fin du fichier existant (mode 'a' pour append)
-        nouvelle_ligne.to_csv(NOM_FICHIER, mode='a', header=False, index=False)
-
-# --- INTERFACE STREAMLIT ---
+# Configuration de la page
 st.set_page_config(page_title="AgroStat INF232", layout="centered")
 
+# --- TITRE ---
 st.title("AgroStat : Collecte et Analyse")
-st.write("TP INF 232 EC2 - Stockage par fichier CSV")
+st.write("TP INF 232 EC2 - MOMHA AGRO TECH")
 
-menu = ["Collecte", "Analyse Descriptive"]
+# --- NAVIGATION ---
+menu = ["Collecte des données", "Analyse Descriptive"]
 choix = st.sidebar.selectbox("Menu", menu)
 
+# --- LOGIQUE DE LECTURE (Sert aux deux onglets) ---
+if os.path.exists(NOM_FICHIER):
+    df = pd.read_csv(NOM_FICHIER)
+else:
+    # Si pas de fichier, on cree un tableau vide structure
+    df = pd.DataFrame(columns=["Culture", "Prix", "Humidite", "Zone"])
+
+# --- ONGLET 1 : COLLECTE ---
 if choix == "Collecte":
     st.subheader("Formulaire de saisie")
     
@@ -49,29 +40,41 @@ if choix == "Collecte":
         
         if soumettre:
             if zone and prix > 0:
-                sauvegarder_donnee(culture, prix, humidite, zone)
-                st.success("Donnees enregistrees dans le fichier CSV")
+                # On ajoute la nouvelle ligne au DataFrame existant
+                nouvelle_ligne = pd.DataFrame([[culture, prix, humidite, zone]], 
+                                             columns=["Culture", "Prix", "Humidite", "Zone"])
+                # On sauvegarde (Si le fichier n'existe pas, on met l'entete, sinon non)
+                if not os.path.exists(NOM_FICHIER):
+                    nouvelle_ligne.to_csv(NOM_FICHIER, index=False)
+                else:
+                    nouvelle_ligne.to_csv(NOM_FICHIER, mode='a', header=False, index=False)
+                
+                st.success("Donnees enregistrees ! Allez dans l'onglet Analyse pour voir le tableau.")
+                # Force le rafraichissement pour l'analyse
+                st.rerun()
             else:
-                st.error("Erreur : Veuillez remplir la zone et le prix.")
+                st.error("Veuillez remplir la zone et le prix.")
 
+# --- ONGLET 2 : ANALYSE ---
 elif choix == "Analyse Descriptive":
     st.subheader("Visualisation des donnees")
-    df = charger_donnees()
     
     if not df.empty:
+        # 1. Statistiques Rapides
         col1, col2 = st.columns(2)
         col1.metric("Collectes", len(df))
+        # Conversion forcee en numerique au cas ou il y aurait un bug de type
+        df["Prix"] = pd.to_numeric(df["Prix"], errors='coerce')
         col2.metric("Prix Moyen", f"{round(df['Prix'].mean(), 1)} FCFA")
         
+        # 2. Graphique
         st.write("### Prix moyen par produit")
         chart_data = df.groupby('Culture')['Prix'].mean()
         st.bar_chart(chart_data)
         
-        st.write("### Historique des donnees (Tableau CSV)")
+        # 3. Affichage du Tableau (Ce qui manquait peut-etre)
+        st.write("### Historique des donnees (CSV)")
         st.dataframe(df, use_container_width=True)
         
-        # Bouton pour telecharger le fichier cree
-        csv_file = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Telecharger le fichier CSV", csv_file, "donnees_agro.csv", "text/csv")
     else:
-        st.info("Le fichier CSV est vide ou n'existe pas encore. Effectuez une collecte.")
+        st.info("Le fichier est vide. Veuillez d'abord saisir des donnees dans l'onglet Collecte.")
